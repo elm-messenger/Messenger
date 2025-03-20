@@ -17,7 +17,7 @@ Other repositories related to Messenger:
 
 ## Games made with Messenger
 
-- [Reweave](https://github.com/elm-messenger/Reweave)
+- [Reweave](https://github.com/linsyking/Reweave)
 - [SilverFOCS Games](https://focs.ji.sjtu.edu.cn/silverfocs/project/2023/p2) (all games in 2023 are powered by Messenger)
 
 ## Cool Features
