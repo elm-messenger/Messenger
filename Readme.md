@@ -25,6 +25,7 @@ Other repositories related to Messenger:
 - Engine in a library. Messenger core is built in a library.
 - Message (or event) based. Faster development cycle, easier to divide work.
 - Functional, but OOP styled. Take advantages of both functional programming and OOP.
+- Borrow concepts from OS design, such as kernel isolation, virtual machine, context switching.
 
 ## Conceptual Picture
 
