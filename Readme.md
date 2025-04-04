@@ -17,8 +17,13 @@ Other repositories related to Messenger:
 
 ## Games made with Messenger
 
+More than 60 games are made with Messenger:
+
 - [Reweave](https://github.com/linsyking/Reweave)
-- [SilverFOCS Games](https://focs.ji.sjtu.edu.cn/silverfocs/project/2023/p2) (all games in 2023 are powered by Messenger)
+- [2023 SilverFOCS Games](https://focs.ji.sjtu.edu.cn/silverfocs/project/2023/p2)
+- [2024 SilverFOCS Games](https://focs.ji.sjtu.edu.cn/silverfocs/project/2024/p2)
+
+Including various game types: RPG, Platformer, Puzzle game, Visual novel, Roguelike, multi-player.
 
 ## Cool Features
 
