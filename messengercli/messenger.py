@@ -9,7 +9,7 @@ from pathlib import Path
 from .updater import Updater
 
 app = typer.Typer(add_completion=False, help="Messenger CLI")
-API_VERSION = "1.3.0"
+API_VERSION = "1.2.0"
 
 SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
@@ -407,9 +407,7 @@ class Messenger:
         new_name = f"{name}{ext}"
         shutil.copy(filepath, f"{ASSETS_DIR}/fonts/{new_name}")
         execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} -f json {ASSETS_DIR}/fonts/{new_name}")
-        self.config["fonts"].append(name)
         os.remove(f"{ASSETS_DIR}/fonts/{new_name}")
-        self.dump_config()
         print(f'Success. Now add `("{name}", FontRes "assets/fonts/{name}.png" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.')
 
 def check_name(name: str):
@@ -502,8 +500,7 @@ Press Enter to continue
             "tag": template_tag,
         },
         "scenes": {},
-        "sceneprotos": {},
-        "fonts": []
+        "sceneprotos": {}
     }
     with open("messenger.json", "w") as f:
         json.dump(initObject, f, indent=4, ensure_ascii=False)
