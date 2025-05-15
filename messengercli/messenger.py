@@ -4,6 +4,7 @@ import typer
 import os
 import shutil
 import json
+import subprocess
 from .updater import Updater
 
 app = typer.Typer(add_completion=False, help="Messenger CLI")
@@ -12,7 +13,22 @@ API_VERSION = "1.2.0"
 SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
 GC_DIR = "src/GlobalComponents"
+ASSETS_DIR = "assets"
 
+
+def execute_cmd(cmd: str, allow_err = False):
+    result = subprocess.run(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True  # decode bytes to string
+    )
+    if result.returncode != 0 and not allow_err:
+        print(cmd, "command failed with exit code", result.returncode)
+        print(result.stdout.strip())
+        print(result.stderr.strip())
+        exit(1)
 
 class Messenger:
     config = None
@@ -38,9 +54,9 @@ class Messenger:
             print("Messenger files not found. Initializing...")
             repo = self.config["template_repo"]
             if repo["tag"] == "":
-                os.system(f"git clone {repo["url"]} .messenger --depth=1")
+                execute_cmd(f"git clone {repo["url"]} .messenger --depth=1")
             else:
-                os.system(
+                execute_cmd(
                     f"git clone -b {repo["tag"]} {repo["url"]} .messenger --depth=1"
                 )
 
@@ -276,7 +292,7 @@ class Messenger:
                 ).rep("Scenes").rep(scene).rep(dir).rep(name)
 
     def format(self):
-        os.system("elm-format src/ --yes")
+        execute_cmd("elm-format src/ --yes")
 
     def add_layer(
         self,
@@ -416,6 +432,8 @@ def init(
         help="Use minimal regl JS that has no builtin font.",
     ),
 ):
+    execute_cmd("elm")
+    execute_cmd("elm-format")
     input(
         f"""Thanks for using Messenger.
 See https://github.com/linsyking/Messenger for more information.
@@ -430,11 +448,12 @@ Press Enter to continue
     )
     os.makedirs(name, exist_ok=True)
     os.chdir(name)
+    print("Cloning templates...")
     if template_tag:
-        os.system(f"git clone -b {template_tag} {template_repo} .messenger --depth=1")
+        execute_cmd(f"git clone -b {template_tag} {template_repo} .messenger --depth=1")
     else:
         template_tag = ""
-        os.system(f"git clone {template_repo} .messenger --depth=1")
+        execute_cmd(f"git clone {template_repo} .messenger --depth=1")
     shutil.copytree(".messenger/src/", "./src")
     os.makedirs("public", exist_ok=True)
     shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
@@ -455,8 +474,8 @@ Press Enter to continue
     shutil.copy(".messenger/Makefile", "./Makefile")
     shutil.copy(".messenger/elm.json", "./elm.json")
 
-    os.makedirs(f"{SCENE_DIR}", exist_ok=True)
-    os.makedirs("assets", exist_ok=True)
+    os.makedirs(SCENE_DIR, exist_ok=True)
+    os.makedirs(ASSETS_DIR, exist_ok=True)
 
     print("Creating elm.json...")
     initObject = {
@@ -471,7 +490,7 @@ Press Enter to continue
     with open("messenger.json", "w") as f:
         json.dump(initObject, f, indent=4, ensure_ascii=False)
     print("Installing dependencies...")
-    os.system("elm make")
+    execute_cmd("elm make", allow_err=True)
     print("Done!")
     print(f"Now please go to {name} and add scenes and components.")
 
@@ -620,6 +639,24 @@ def remove(
     else:
         print("No such type.")
     msg.dump_config()
+
+
+@app.command()
+def font(
+    list_fonts: bool = typer.Option(False, "-l", help="List all installed fonts"),
+    install: str = typer.Option(None, "-i", exists=True, help="Install a font from a file"),
+    remove: str = typer.Option(None, "-r", help="Remove an installed font by name")
+):
+    # Check if the tool exists
+    execute_cmd("msdf-bmfont -h")
+    if list_fonts:
+        typer.echo("Installed fonts:\n- Arial\n- Roboto\n- Times New Roman")
+    elif install:
+        typer.echo(f"Installing font from: {install}")
+    elif remove:
+        typer.echo(f"Removing font: {remove}")
+    else:
+        typer.echo("No action specified. Use -l, -i, or -r.")
 
 
 if __name__ == "__main__":
