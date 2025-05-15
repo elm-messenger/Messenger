@@ -5,10 +5,11 @@ import os
 import shutil
 import json
 import subprocess
+from pathlib import Path
 from .updater import Updater
 
 app = typer.Typer(add_completion=False, help="Messenger CLI")
-API_VERSION = "1.2.0"
+API_VERSION = "1.3.0"
 
 SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
@@ -395,6 +396,21 @@ class Messenger:
                     ],
                 ).rep("Scenes").rep(scene).rep(layer)
 
+    def install_font(self, filepath, name, font_size, range):
+        """
+        Install a custom font
+        """
+        if name in self.config["fonts"]:
+            print("Invalid font name")
+            exit(1)
+        ext = Path(filepath).suffix
+        new_name = f"{name}{ext}"
+        shutil.copy(filepath, f"{ASSETS_DIR}/fonts/{new_name}")
+        execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} -f json {ASSETS_DIR}/fonts/{new_name}")
+        self.config["fonts"].append(name)
+        os.remove(f"{ASSETS_DIR}/fonts/{new_name}")
+        self.dump_config()
+        print(f'Success. Now add `("{name}", FontRes "assets/fonts/{name}.png" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.')
 
 def check_name(name: str):
     """
@@ -476,6 +492,7 @@ Press Enter to continue
 
     os.makedirs(SCENE_DIR, exist_ok=True)
     os.makedirs(ASSETS_DIR, exist_ok=True)
+    os.makedirs(f"{ASSETS_DIR}/fonts", exist_ok=True)
 
     print("Creating elm.json...")
     initObject = {
@@ -486,6 +503,7 @@ Press Enter to continue
         },
         "scenes": {},
         "sceneprotos": {},
+        "fonts": []
     }
     with open("messenger.json", "w") as f:
         json.dump(initObject, f, indent=4, ensure_ascii=False)
@@ -643,20 +661,19 @@ def remove(
 
 @app.command()
 def font(
-    list_fonts: bool = typer.Option(False, "-l", help="List all installed fonts"),
-    install: str = typer.Option(None, "-i", exists=True, help="Install a font from a file"),
-    remove: str = typer.Option(None, "-r", help="Remove an installed font by name")
+    file: str,
+    name: str,
+    font_size = typer.Option(42, "--size", help="Set the font size."),
+    range = typer.Option(4, "--range", help="Set the distance range.")
 ):
     # Check if the tool exists
     execute_cmd("msdf-bmfont -h")
-    if list_fonts:
-        typer.echo("Installed fonts:\n- Arial\n- Roboto\n- Times New Roman")
-    elif install:
-        typer.echo(f"Installing font from: {install}")
-    elif remove:
-        typer.echo(f"Removing font: {remove}")
-    else:
-        typer.echo("No action specified. Use -l, -i, or -r.")
+    if not name:
+        print("Please specify the font name")
+        exit(1)
+    msg = Messenger()
+    input(f"You are going to install font from {file} as {name}, continue?")
+    msg.install_font(file, name, font_size, range)
 
 
 if __name__ == "__main__":
