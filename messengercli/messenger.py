@@ -17,6 +17,17 @@ GC_DIR = "src/GlobalComponents"
 ASSETS_DIR = "assets"
 
 
+def compress_json_file(path: str):
+    path = Path(path)
+    if not path.is_file():
+        print(f"File not found: {path}")
+        return
+    with path.open('r', encoding='utf-8') as f:
+        data = json.load(f)
+    compressed = json.dumps(data, separators=(',', ':'))
+    with path.open('w', encoding='utf-8') as f:
+        f.write(compressed)
+
 def execute_cmd(cmd: str, allow_err = False):
     result = subprocess.run(
         cmd,
@@ -400,14 +411,12 @@ class Messenger:
         """
         Install a custom font
         """
-        if name in self.config["fonts"]:
-            print("Invalid font name")
-            exit(1)
         ext = Path(filepath).suffix
         new_name = f"{name}{ext}"
         shutil.copy(filepath, f"{ASSETS_DIR}/fonts/{new_name}")
         execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} -f json {ASSETS_DIR}/fonts/{new_name}")
         os.remove(f"{ASSETS_DIR}/fonts/{new_name}")
+        compress_json_file(f"{ASSETS_DIR}/fonts/{name}.json")
         print(f'Success. Now add `("{name}", FontRes "assets/fonts/{name}.png" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.')
 
 def check_name(name: str):
