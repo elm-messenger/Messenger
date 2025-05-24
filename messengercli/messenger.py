@@ -407,14 +407,15 @@ class Messenger:
                     ],
                 ).rep("Scenes").rep(scene).rep(layer)
 
-    def install_font(self, filepath, name, font_size, range):
+    def install_font(self, filepath, name, font_size, range, charset_file):
         """
         Install a custom font
         """
         ext = Path(filepath).suffix
         new_name = f"{name}{ext}"
         shutil.copy(filepath, f"{ASSETS_DIR}/fonts/{new_name}")
-        execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} -f json {ASSETS_DIR}/fonts/{new_name}")
+        charset_cmd = f"-i {charset_file}" if charset_file else ""
+        execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} {charset_cmd} -f json {ASSETS_DIR}/fonts/{new_name}")
         os.remove(f"{ASSETS_DIR}/fonts/{new_name}")
         compress_json_file(f"{ASSETS_DIR}/fonts/{name}.json")
         print(f'Success. Now add `("{name}", FontRes "assets/fonts/{name}.png" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.')
@@ -670,7 +671,8 @@ def font(
     file: str,
     name: str,
     font_size = typer.Option(42, "--size", help="Set the font size."),
-    range = typer.Option(4, "--range", help="Set the distance range.")
+    range = typer.Option(4, "--range", help="Set the distance range."),
+    charset_file = typer.Option(None, "--charset", help="Set the character set file.")
 ):
     # Check if the tool exists
     execute_cmd("msdf-bmfont -h")
@@ -679,7 +681,7 @@ def font(
         exit(1)
     msg = Messenger()
     input(f"You are going to install font from {file} as {name}, continue?")
-    msg.install_font(file, name, font_size, range)
+    msg.install_font(file, name, font_size, range, charset_file)
 
 
 if __name__ == "__main__":
