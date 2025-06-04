@@ -739,6 +739,9 @@ def font(
             currentJson = json.load(f)
         currentJson["common"]["scaleW"] = scaleW
         currentJson["common"]["scaleH"] = scaleH
+        with open(output_json, "w") as f:
+            json.dump(currentJson, f)
+
 
 
 if __name__ == "__main__":
