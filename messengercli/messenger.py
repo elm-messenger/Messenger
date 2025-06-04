@@ -22,25 +22,27 @@ def compress_json_file(path: str):
     if not path.is_file():
         print(f"File not found: {path}")
         return
-    with path.open('r', encoding='utf-8') as f:
+    with path.open("r", encoding="utf-8") as f:
         data = json.load(f)
-    compressed = json.dumps(data, separators=(',', ':'))
-    with path.open('w', encoding='utf-8') as f:
+    compressed = json.dumps(data, separators=(",", ":"))
+    with path.open("w", encoding="utf-8") as f:
         f.write(compressed)
 
-def execute_cmd(cmd: str, allow_err = False):
+
+def execute_cmd(cmd: str, allow_err=False):
     result = subprocess.run(
         cmd,
         shell=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True  # decode bytes to string
+        text=True,  # decode bytes to string
     )
     if result.returncode != 0 and not allow_err:
         print(cmd, "command failed with exit code", result.returncode)
         print(result.stdout.strip())
         print(result.stderr.strip())
         exit(1)
+
 
 class Messenger:
     config = None
@@ -407,18 +409,26 @@ class Messenger:
                     ],
                 ).rep("Scenes").rep(scene).rep(layer)
 
-    def install_font(self, filepath, name, font_size, range, charset_file):
+    def install_font(self, filepath, name, font_size, range, charset_file, reuse, curpng):
         """
         Install a custom font
         """
+        output_texture = f"{ASSETS_DIR}/fonts/font_{curpng}.png"
+        output_cfg = f"{ASSETS_DIR}/fonts/font_{curpng}.cfg"
         ext = Path(filepath).suffix
         new_name = f"{name}{ext}"
         shutil.copy(filepath, f"{ASSETS_DIR}/fonts/{new_name}")
         charset_cmd = f"-i {charset_file}" if charset_file else ""
-        execute_cmd(f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} {charset_cmd} -f json {ASSETS_DIR}/fonts/{new_name}")
+        reuse_cmd = f"--reuse {output_cfg}" if reuse else ""
+        cmd = f"msdf-bmfont --smart-size --pot -d 2 -s {font_size} -r {range} {charset_cmd} -f json {reuse_cmd} -o {output_texture} {ASSETS_DIR}/fonts/{new_name}"
+        # print(cmd)
+        execute_cmd(cmd)
         os.remove(f"{ASSETS_DIR}/fonts/{new_name}")
         compress_json_file(f"{ASSETS_DIR}/fonts/{name}.json")
-        print(f'Success. Now add `("{name}", FontRes "assets/fonts/{name}.png" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.')
+        print(
+            f'Success. Now add `("{name}", FontRes "{output_texture}" "assets/fonts/{name}.json")` to `allFont` in `src/Lib/Resources.elm`.'
+        )
+
 
 def check_name(name: str):
     """
@@ -510,7 +520,7 @@ Press Enter to continue
             "tag": template_tag,
         },
         "scenes": {},
-        "sceneprotos": {}
+        "sceneprotos": {},
     }
     with open("messenger.json", "w") as f:
         json.dump(initObject, f, indent=4, ensure_ascii=False)
@@ -666,22 +676,56 @@ def remove(
     msg.dump_config()
 
 
-@app.command()
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def font(
-    file: str,
-    name: str,
-    font_size = typer.Option(42, "--size", help="Set the font size."),
-    range = typer.Option(4, "--range", help="Set the distance range."),
-    charset_file = typer.Option(None, "--charset", help="Set the character set file.")
+    ctx : typer.Context,
+    range=typer.Option(4, "--range", help="Set the distance range."),
 ):
+    args = ctx.args
     # Check if the tool exists
     execute_cmd("msdf-bmfont -h")
-    if not name:
-        print("Please specify the font name")
-        exit(1)
+    i = 0
+    results = []
+    currentObj = None
+    while i < len(args):
+        obj = args[i]
+        i += 1
+        if currentObj == None:
+            currentObj = {"file": obj, "name": None, "font_size": 40, "charset": None}
+        else:
+            if obj == "-n":
+                currentObj["name"] = args[i]
+                i += 1
+            elif obj == "-i":
+                currentObj["charset"] = args[i]
+                i += 1
+            elif obj == "-s":
+                currentObj["font_size"] = int(args[i])
+                i += 1
+            else:
+                results.append(currentObj)
+                currentObj = None
+                i -= 1
+    if currentObj == None:
+        print("No font files provided.")
+        exit(0)
+    results.append(currentObj)
+    for f in results:
+        if f["name"] is None:
+            f["name"] = Path(f["file"]).stem
+    for f in results:
+        print(f['name'], "from", f['file'])
+    input(f"You are going to install the above font(s), continue?")
     msg = Messenger()
-    input(f"You are going to install font from {file} as {name}, continue?")
-    msg.install_font(file, name, font_size, range, charset_file)
+    curpng = 0
+    while 1:
+        output_texture = f"{ASSETS_DIR}/fonts/font_{curpng}.png"
+        if not os.path.exists(output_texture):
+            break
+        curpng += 1
+    for f in results:
+        msg.install_font(f['file'], f['name'], f['font_size'], range, f['charset'], True, curpng)
+    os.remove(f"{ASSETS_DIR}/fonts/font_{curpng}.cfg")
 
 
 if __name__ == "__main__":
