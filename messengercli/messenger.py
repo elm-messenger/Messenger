@@ -726,6 +726,19 @@ def font(
     for f in results:
         msg.install_font(f['file'], f['name'], f['font_size'], range, f['charset'], True, curpng)
     os.remove(f"{ASSETS_DIR}/fonts/font_{curpng}.cfg")
+    # Fix: use the last's font's texture settings
+    lastFont = results[len(results) - 1]
+    output_json = f"{ASSETS_DIR}/fonts/{lastFont["name"]}.json"
+    with open(output_json, "r") as f:
+        lastFontJson = json.load(f)
+    scaleW = lastFontJson["common"]["scaleW"]
+    scaleH = lastFontJson["common"]["scaleH"]
+    for f in results:
+        output_json = f"{ASSETS_DIR}/fonts/{f["name"]}.json"
+        with open(output_json, "r") as f:
+            currentJson = json.load(f)
+        currentJson["common"]["scaleW"] = scaleW
+        currentJson["common"]["scaleH"] = scaleH
 
 
 if __name__ == "__main__":
