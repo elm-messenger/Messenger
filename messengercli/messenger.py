@@ -121,6 +121,8 @@ class Messenger:
         """
         Add a level
         """
+        if not os.path.exists(SCENE_DIR):
+            os.mkdir(SCENE_DIR)
         if sceneproto not in self.config["sceneprotos"]:
             raise Exception("Sceneproto doesn't exist.")
         if name in self.config["scenes"]:
@@ -221,6 +223,8 @@ class Messenger:
         """
         Update scene settings (AllScenes and SceneSettings)
         """
+        if not os.path.exists(SCENE_DIR):
+            return
         scenes = self.config["scenes"]
         Updater([".messenger/scene/AllScenes.elm"], [f"{SCENE_DIR}/AllScenes.elm"]).rep(
             "\n".join([f"import Scenes.{l}.Model as {l}" for l in scenes])
