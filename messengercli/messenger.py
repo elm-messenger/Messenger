@@ -243,6 +243,8 @@ class Messenger:
                 [".messenger/component/GlobalComponent/Model.elm"],
                 [f"{GC_DIR}/{name}/Model.elm"],
             ).rep(name)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {GC_DIR}/{name}")
         else:
             raise Exception("Global component already exists.")
 
@@ -267,12 +269,16 @@ class Messenger:
                     [".messenger/sceneproto/SceneBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/SceneBase.elm")
 
             if not os.path.exists(f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"):
                 Updater(
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             self.dump_config()
             os.makedirs(f"{SCENEPROTO_DIR}/{scene}/{dir}/{name}", exist_ok=True)
@@ -290,6 +296,8 @@ class Messenger:
                     [".messenger/component/Init.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/{name}/Init.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir).rep(name)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/{name}")
         else:
             if scene not in self.config["scenes"]:
                 raise Exception("Scene doesn't exist.")
@@ -305,12 +313,16 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("Scenes").rep(scene).rep(dir)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENE_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/scene/SceneBase.elm"],
                     [f"{SCENE_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENE_DIR}/{scene}/SceneBase.elm")
 
             self.dump_config()
             os.makedirs(f"{SCENE_DIR}/{scene}/{dir}/{name}", exist_ok=True)
@@ -328,6 +340,8 @@ class Messenger:
                     [".messenger/component/Init.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/{name}/Init.elm"],
                 ).rep("Scenes").rep(scene).rep(dir).rep(name)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/{name}")
 
     def format(self):
         execute_cmd("elm-format src/ --yes")
@@ -605,8 +619,14 @@ def component(
     input(
         f"You are going to create a component named {name} in {'SceneProtos' if is_proto else 'Scenes'}/{scene}/{compdir}, continue?"
     )
+    if msg.config["auto_commit"]:
+        check_git_clean()
     msg.add_component(name, scene, compdir, is_proto, init)
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(
+            f"git commit -m 'build(Messenger): initialize component {name} {f"in {compdir}" if compdir != "Components" else ""} in {"sceneProto" if is_proto else "scene"} {scene}'"
+        )
     print("Done!")
 
 
@@ -615,8 +635,12 @@ def gc(name: str):
     name = check_name(name)
     msg = Messenger()
     input(f"You are going to create a global component named {name}, continue?")
+    if msg.config["auto_commit"]:
+        check_git_clean()
     msg.add_gc(name)
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(f"git commit -m 'build(Messenger): initialize global component {name}'")
     print("Done!")
 
 
