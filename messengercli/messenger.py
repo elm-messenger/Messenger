@@ -227,10 +227,10 @@ class Messenger:
         """
         if not os.path.exists(SCENE_DIR):
             return
-        scenes = self.config["scenes"]
+        scenes = sorted(self.config["scenes"])
         Updater([".messenger/scene/AllScenes.elm"], [f"{SCENE_DIR}/AllScenes.elm"]).rep(
             "\n".join([f"import Scenes.{l}.Model as {l}" for l in scenes])
-        ).rep(",\n".join([f'( "{l}", {l}.scene )' for l in scenes]))
+        ).rep("\n        , ".join([f'( "{l}", {l}.scene )' for l in scenes]))
         if self.config["auto_commit"]:
             execute_cmd(f"git add {SCENE_DIR}/AllScenes.elm")
 
