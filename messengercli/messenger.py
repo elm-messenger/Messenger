@@ -44,13 +44,6 @@ def execute_cmd(cmd: str, allow_err=False):
         exit(1)
     return result.returncode, result.stdout
 
-def check_git_clean():
-    res = execute_cmd("git status --porcelain")
-    if res[1] != "":
-        print("Your git repository is not clean. Please commit or stash your changes before using Messenger CLI.")
-        print(res[1])
-        exit(1)
-
 
 class Messenger:
     config = None
@@ -81,6 +74,13 @@ class Messenger:
                 execute_cmd(
                     f"git clone -b {repo["tag"]} {repo["url"]} .messenger --depth=1"
                 )
+
+    def check_git_clean():
+        res = execute_cmd("git status --porcelain")
+        if res[1] != "":
+            print("Your git repository is not clean. Please commit or stash your changes before using this command.")
+            print(res[1])
+            exit(1)
 
     def dump_config(self):
         with open("messenger.json", "w") as f:
@@ -620,7 +620,7 @@ def component(
         f"You are going to create a component named {name} in {'SceneProtos' if is_proto else 'Scenes'}/{scene}/{compdir}, continue?"
     )
     if msg.config["auto_commit"]:
-        check_git_clean()
+        msg.check_git_clean()
     msg.add_component(name, scene, compdir, is_proto, init)
     msg.format()
     if msg.config["auto_commit"]:
@@ -636,7 +636,7 @@ def gc(name: str):
     msg = Messenger()
     input(f"You are going to create a global component named {name}, continue?")
     if msg.config["auto_commit"]:
-        check_git_clean()
+        msg.check_git_clean()
     msg.add_gc(name)
     msg.format()
     if msg.config["auto_commit"]:
@@ -657,7 +657,7 @@ def scene(
         f"You are going to create a {'raw ' if raw else ''}{'sceneproto' if is_proto else 'scene'} named {name}, continue?"
     )
     if msg.config["auto_commit"]:
-        check_git_clean()
+        msg.check_git_clean()
     msg.add_scene(name, raw, is_proto, init)
     msg.update_scenes()
     msg.format()
@@ -675,7 +675,7 @@ def level(sceneproto: str, name: str):
         f"You are going to create a level named {name} from sceneproto {sceneproto}, continue?"
     )
     if msg.config["auto_commit"]:
-        check_git_clean()
+        msg.check_git_clean()
     msg.add_level(name, sceneproto)
     msg.update_scenes()
     msg.format()
@@ -708,7 +708,7 @@ def layer(
         f"You are going to create a layer named {layer} under {'sceneproto' if is_proto else 'scene'} {scene}, continue?"
     )
     if msg.config["auto_commit"]:
-        check_git_clean()
+        msg.check_git_clean()
     msg.add_layer(scene, layer, has_component, is_proto, compdir, init)
     msg.format()
     if msg.config["auto_commit"]:
