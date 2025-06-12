@@ -42,7 +42,14 @@ def execute_cmd(cmd: str, allow_err=False):
         print(result.stdout.strip())
         print(result.stderr.strip())
         exit(1)
-    return result.returncode
+    return result.returncode, result.stdout
+
+def check_git_clean():
+    res = execute_cmd("git status --porcelain")
+    if res[1] != "":
+        print("Your git repository is not clean. Please commit or stash your changes before using Messenger CLI.")
+        print(res[1])
+        exit(1)
 
 
 class Messenger:
@@ -172,7 +179,12 @@ class Messenger:
                         f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm",
                     ],
                 ).rep(scene)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}")
+                execute_cmd("git add ./messenger.json")
         else:
+            if not os.path.exists(SCENE_DIR):
+                os.mkdir(SCENE_DIR)
             if scene in self.config["scenes"]:
                 raise Exception("Scene already exists.")
             self.config["scenes"][scene] = {
@@ -201,6 +213,9 @@ class Messenger:
                         f"{SCENE_DIR}/{scene}/SceneBase.elm",
                     ],
                 ).rep(scene)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENE_DIR}/{scene}")
+                execute_cmd("git add ./messenger.json")
 
     def update_scenes(self):
         """
@@ -210,6 +225,8 @@ class Messenger:
         Updater([".messenger/scene/AllScenes.elm"], [f"{SCENE_DIR}/AllScenes.elm"]).rep(
             "\n".join([f"import Scenes.{l}.Model as {l}" for l in scenes])
         ).rep(",\n".join([f'( "{l}", {l}.scene )' for l in scenes]))
+        if self.config["auto_commit"]:
+            execute_cmd("git add ./src/Scenes/AllScenes.elm")
 
     def add_gc(self, name: str):
         if not os.path.exists(GC_DIR):
@@ -597,9 +614,13 @@ def scene(
     input(
         f"You are going to create a {'raw ' if raw else ''}{'sceneproto' if is_proto else 'scene'} named {name}, continue?"
     )
+    if msg.config["auto_commit"]:
+        check_git_clean()
     msg.add_scene(name, raw, is_proto, init)
     msg.update_scenes()
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(f"git commit -m 'build(Messenger): initialize {"sceneproto" if is_proto else "scene"} {name}'")
     print("Done!")
 
 
