@@ -456,6 +456,9 @@ def init(
         "-b",
         help="Use the tag or branch of the repository to clone.",
     ),
+    auto_commit: bool = typer.Option(
+        False, "--auto-commit", "-g", help="Automatically commit template codes."
+    ),
     use_cdn: bool = typer.Option(
         False,
         "--use-cdn",
@@ -489,16 +492,11 @@ Press Enter to continue
     else:
         template_tag = ""
         execute_cmd(f"git clone {template_repo} .messenger --depth=1")
-    if not execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True) == 0:
-        print("Initializing git repository...")
-        execute_cmd("git init")
     shutil.copytree(".messenger/src/", "./src")
-    execute_cmd("git add ./src")
     os.makedirs("public", exist_ok=True)
     shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
     shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
     shutil.copy(".messenger/public/style.css", "./public/style.css")
-    execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/style.css")
     if use_cdn:
         if minimal:
             shutil.copy(".messenger/public/index.min.html", "./public/index.html")
@@ -510,17 +508,13 @@ Press Enter to continue
             shutil.copy(".messenger/public/regl.min.js", "./public/regl.js")
         else:
             shutil.copy(".messenger/public/regl.js", "./public/regl.js")
-        execute_cmd("git add ./public/regl.js")
-    execute_cmd("git add ./public/index.html")
     shutil.copy(".messenger/.gitignore", "./.gitignore")
     shutil.copy(".messenger/Makefile", "./Makefile")
     shutil.copy(".messenger/elm.json", "./elm.json")
-    execute_cmd("git add ./.gitignore ./Makefile ./elm.json")
 
     os.makedirs(SCENE_DIR, exist_ok=True)
     os.makedirs(ASSETS_DIR, exist_ok=True)
     os.makedirs(f"{ASSETS_DIR}/fonts", exist_ok=True)
-    execute_cmd("git add ./assets/fonts")
 
     print("Creating messenger.json...")
     initObject = {
@@ -529,16 +523,30 @@ Press Enter to continue
             "url": template_repo,
             "tag": template_tag,
         },
+        "auto_commit": auto_commit,
         "scenes": {},
         "sceneprotos": {},
     }
     with open("messenger.json", "w") as f:
         json.dump(initObject, f, indent=4, ensure_ascii=False)
-    execute_cmd("git add ./messenger.json")
     print("Installing dependencies...")
     execute_cmd("elm make", allow_err=True)
-    print("Making git commit...")
-    execute_cmd("git commit -m 'build(Messenger): initialize project'")
+
+    if auto_commit: 
+        if not execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True) == 0:
+            print("Initializing git repository...")
+            execute_cmd("git init")
+        print("Adding files to git...")
+        execute_cmd("git add ./src")
+        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/style.css")
+        execute_cmd("git add ./public/index.html")
+        execute_cmd("git add ./.gitignore ./Makefile ./elm.json")
+        execute_cmd("git add ./assets/fonts")
+        execute_cmd("git add ./messenger.json")
+        if not use_cdn:
+            execute_cmd("git add ./public/regl.js")
+        print("Making git commit...")
+        execute_cmd("git commit -m 'build(Messenger): initialize project'")
     print("Done!")
     print(f"Now please go to {name} and add scenes and components.")
 
