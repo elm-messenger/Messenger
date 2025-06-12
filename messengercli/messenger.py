@@ -146,6 +146,8 @@ class Messenger:
                 [".messenger/sceneproto/Layered/Level.elm"],
                 [f"{SCENE_DIR}/{name}/Model.elm"],
             ).rep(name).rep(sceneproto)
+        if self.config["auto_commit"]:
+            execute_cmd(f"git add {SCENE_DIR}/{name}")
 
     def add_scene(self, scene: str, raw: bool, is_proto: bool, init: bool):
         """
@@ -648,9 +650,15 @@ def level(sceneproto: str, name: str):
     input(
         f"You are going to create a level named {name} from sceneproto {sceneproto}, continue?"
     )
+    if msg.config["auto_commit"]:
+        check_git_clean()
     msg.add_level(name, sceneproto)
     msg.update_scenes()
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(
+            f"git commit -m 'build(Messenger): initialize level {name} from sceneproto {sceneproto}'"
+        )
     print("Done!")
 
 
