@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import re
 import typer
 import os
 import shutil
@@ -89,34 +90,64 @@ class Messenger:
             execute_cmd("git add ./messenger.json")
 
     def update_config(self):
+        self.config["version"] = API_VERSION
+        self.config["template_repo"] = {"url": "", "tag": ""}
+        self.config["auto_commit"] = False
+        if execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True)[0] == 0 and self.config.get("auto_commit"):
+            self.config["auto_commit"] = True
         self.config["scenes"] = {}
         self.config["sceneprotos"] = {}
+                    
+        os.chdir(".messenger")
+        if execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True)[0] != 0:
+            print("No git repository found in .messenger directory.")
+        else:
+            urlcode, urlres = execute_cmd("git remote get-url origin", allow_err=True)
+            if urlcode == 0:
+                self.config["template_repo"]["url"] = urlres.strip()
+            else:
+                print("No remote repository found. Please set the remote repository URL in messenger.json manually.")
+            tagcode, tagres = execute_cmd("git describe --tags --exact-match", allow_err=True)
+            if tagcode == 0:
+                self.config["template_repo"]["tag"] = tagres.strip()
+            else:
+                branchcode, branchres = execute_cmd("git rev-parse --abbrev-ref @{u}", allow_err=True)
+                if branchcode == 0:
+                    if re.fullmatch(r'origin/(main|master)', branchres.strip()):
+                        self.config["template_repo"]["tag"] = "" 
+                    else:
+                        self.config["template_repo"]["tag"] = branchres.strip()[len('origin/'):]
+                else:
+                    print("No tag or branch found. Please set the tag or branch in messenger.json manually.")
+        os.chdir("..")
 
-        self.__update_scene(SCENE_DIR, False)
         if os.path.exists(SCENEPROTO_DIR):
             self.__update_scene(SCENEPROTO_DIR, True)
+        if not os.path.exists(SCENE_DIR):
+            os.mkdir(SCENE_DIR)
+        self.__update_scene(SCENE_DIR, False)
         self.dump_config()
 
     def __update_scene(self, sceneDir: str, isProto: bool):
         field = "sceneprotos" if isProto else "scenes"
-        initScene = lambda x: ({"raw": x} if isProto else {})
-        for sceneName in os.listdir(sceneDir):
+        for sceneName in sorted(os.listdir(sceneDir), key=lambda d: os.path.join(sceneDir, d)):
             if os.path.isdir(os.path.join(sceneDir, sceneName)):
                 scene = os.path.join(sceneDir, sceneName)
-                if os.path.exists(os.path.join(scene, "Model.elm")):
-                    with open(os.path.join(scene, "Model.elm"), "r") as f:
-                        raw = "genRawScene" in f.read()
-                else:
+                if not os.path.exists(os.path.join(scene, "Model.elm")):
                     continue
-                if (
-                    isProto
-                    or raw
-                    or os.path.exists(os.path.join(scene, "SceneBase.elm"))
-                ):
-                    self.config[field][sceneName] = initScene(raw)
-                else:
-                    self.config[field][sceneName] = []
-
+                self.config[field][sceneName] = {}
+                with open(os.path.join(scene, "Model.elm"), "r") as f:
+                    content = f.read()
+                    if not isProto and "LevelInit" in content:
+                        pattern = r'import SceneProtos\.(\w+)\.Model'
+                        match = re.search(pattern, content)
+                        if match:
+                            self.config[field][sceneName]["sceneproto"] = match.group(1)
+                            self.config["sceneprotos"][match.group(1)]["levels"].append(sceneName)
+                    self.config[field][sceneName]["raw"] = "import Messenger.Scene.RawScene" in content
+                if isProto:
+                    self.config[field][sceneName]["levels"] = []
+                    
     def add_level(self, name: str, sceneproto: str):
         """
         Add a level
@@ -726,6 +757,10 @@ def update():
     )
     msg.update_config()
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(
+            "git commit -m 'build(Messenger): update messenger.json'"
+        )
     print("Done!")
 
 
