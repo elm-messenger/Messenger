@@ -85,6 +85,8 @@ class Messenger:
     def dump_config(self):
         with open("messenger.json", "w") as f:
             json.dump(self.config, f, indent=4, ensure_ascii=False)
+        if self.config["auto_commit"]:
+            execute_cmd("git add ./messenger.json")
 
     def update_config(self):
         self.config["scenes"] = {}
@@ -181,7 +183,6 @@ class Messenger:
                 ).rep(scene)
             if self.config["auto_commit"]:
                 execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}")
-                execute_cmd("git add ./messenger.json")
         else:
             if not os.path.exists(SCENE_DIR):
                 os.mkdir(SCENE_DIR)
@@ -215,7 +216,6 @@ class Messenger:
                 ).rep(scene)
             if self.config["auto_commit"]:
                 execute_cmd(f"git add {SCENE_DIR}/{scene}")
-                execute_cmd("git add ./messenger.json")
 
     def update_scenes(self):
         """
@@ -226,7 +226,7 @@ class Messenger:
             "\n".join([f"import Scenes.{l}.Model as {l}" for l in scenes])
         ).rep(",\n".join([f'( "{l}", {l}.scene )' for l in scenes]))
         if self.config["auto_commit"]:
-            execute_cmd("git add ./src/Scenes/AllScenes.elm")
+            execute_cmd(f"git add {SCENE_DIR}/AllScenes.elm")
 
     def add_gc(self, name: str):
         if not os.path.exists(GC_DIR):
@@ -351,12 +351,16 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/sceneproto/SceneBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/SceneBase.elm")
             self.dump_config()
             os.mkdir(f"{SCENEPROTO_DIR}/{scene}/{layer}")
             if init:
@@ -382,6 +386,8 @@ class Messenger:
                         f"{SCENEPROTO_DIR}/{scene}/{layer}/Model.elm",
                     ],
                 ).rep("SceneProtos").rep(scene).rep(layer)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{layer}")
         else:
             if scene not in self.config["scenes"]:
                 raise Exception("Scene doesn't exist.")
@@ -395,12 +401,16 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("Scenes").rep(scene).rep(dir)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENE_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/scene/SceneBase.elm"],
                     [f"{SCENE_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
+                if self.config["auto_commit"]:
+                    execute_cmd(f"git add {SCENE_DIR}/{scene}/SceneBase.elm")
             self.dump_config()
             os.mkdir(f"{SCENE_DIR}/{scene}/{layer}")
             if init:
@@ -426,6 +436,8 @@ class Messenger:
                         f"{SCENE_DIR}/{scene}/{layer}/Model.elm",
                     ],
                 ).rep("Scenes").rep(scene).rep(layer)
+            if self.config["auto_commit"]:
+                execute_cmd(f"git add {SCENE_DIR}/{scene}/{layer}")
 
     def install_font(self, filepath, name, font_size, range, charset_file, reuse, curpng):
         """
@@ -659,8 +671,14 @@ def layer(
     input(
         f"You are going to create a layer named {layer} under {'sceneproto' if is_proto else 'scene'} {scene}, continue?"
     )
+    if msg.config["auto_commit"]:
+        check_git_clean()
     msg.add_layer(scene, layer, has_component, is_proto, compdir, init)
     msg.format()
+    if msg.config["auto_commit"]:
+        execute_cmd(
+            f"git commit -m 'build(Messenger): initialize layer {layer} under {"sceneproto" if is_proto else "scene"} {scene}'"
+        )
     print("Done!")
 
 
