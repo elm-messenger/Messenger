@@ -549,29 +549,36 @@ def init(
         "--min",
         help="Use minimal regl JS that has no builtin font.",
     ),
+    current_dir: bool = typer.Option(
+        False, "--current-dir", "-c", help="Create the project in the current directory."
+    ),
 ):
     execute_cmd("elm")
     execute_cmd("elm-format")
+    hint = f"Create a directory named {name}" if not current_dir else f"Use the current directory, project name {name} will be ignored"
     input(
         f"""Thanks for using Messenger.
 See https://github.com/linsyking/Messenger for more information.
 Here is my plan:
 
-- Create a directory named {name}
+- {hint}
 - Install the core Messenger library
 - Install the elm packages needed
 
 Press Enter to continue
 """
     )
-    os.makedirs(name, exist_ok=True)
-    os.chdir(name)
+    if not current_dir:
+        os.makedirs(name, exist_ok=True)
+        os.chdir(name)
     print("Cloning templates...")
     if template_tag:
         execute_cmd(f"git clone -b {template_tag} {template_repo} .messenger --depth=1")
     else:
         template_tag = ""
         execute_cmd(f"git clone {template_repo} .messenger --depth=1")
+    if os.path.exists("./src"):
+        raise FileExistsError("src directory already exists. Please remove or rename it first.")
     shutil.copytree(".messenger/src/", "./src")
     os.makedirs("public", exist_ok=True)
     shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
@@ -628,7 +635,8 @@ Press Enter to continue
         print("Making git commit...")
         execute_cmd("git commit -m 'build(Messenger): initialize project'")
     print("Done!")
-    print(f"Now please go to {name} and add scenes and components.")
+    hint = f" go to {name} and" if not current_dir else ""
+    print(f"Now please{hint} add scenes and components.")
 
 
 @app.command()
