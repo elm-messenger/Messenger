@@ -882,6 +882,22 @@ def font(
             json.dump(currentJson, f)
 
 
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    version: bool = typer.Option(
+        False, "--version", "-v", help="Show the version of Messenger CLI."
+    ),
+):
+    """
+    Messenger CLI - A command line tool for Messenger projects.
+    """
+    if ctx.invoked_subcommand is None and not version:
+        typer.echo(ctx.get_help())
+    if version:
+        print(f"Messenger API v{API_VERSION}")
+
+
 
 if __name__ == "__main__":
     app()
