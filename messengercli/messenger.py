@@ -16,6 +16,11 @@ SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
 GC_DIR = "src/GlobalComponents"
 ASSETS_DIR = "assets"
+ELM_REGL_REPO = "https://github.com/elm-messenger/elm-regl.git"
+CORE_REPO = "https://github.com/elm-messenger/messenger-core.git"
+EXTRA_REPO = "https://github.com/elm-messenger/messenger-extra.git"
+TEMP_REPO = "https://github.com/elm-messenger/messenger-templates.git"
+JS_REGL_REPO = "https://github.com/elm-messenger/elm-regl-js.git"
 
 
 def compress_json_file(path: str):
@@ -76,12 +81,11 @@ class Messenger:
                     f"git clone -b {repo["tag"]} {repo["url"]} .messenger --depth=1"
                 )
 
-    def check_git_clean():
+    def check_git_clean(self):
         res = execute_cmd("git status --porcelain")
         if res[1] != "":
-            print("Your git repository is not clean. Please commit or stash your changes before using this command.")
-            print(res[1])
-            exit(1)
+            print(f"Your git repository is not clean. Please commit or stash your changes before using this command.")
+            raise Exception(f"{res[1]}")
 
     def dump_config(self):
         with open("messenger.json", "w") as f:
@@ -519,13 +523,83 @@ def check_name(name: str):
         return name[0].capitalize() + name[1:]
     else:
         return name
+    
 
+def get_latest_tag(repo_url):
+    _, res = execute_cmd(f"git ls-remote --tags {repo_url}")
+    tags = []
+    for line in res.splitlines():
+        if "^{}" in line:
+            continue
+        if "refs/tags/" in line:
+            tag = line.split("refs/tags/")[1]
+            tag = tag.lstrip("v")
+            tags.append(tag)
+    return str(max(tags, key=lambda x: tuple(map(int, x.split('.')))))
+
+
+def check_file_changes(force, file, file_t = ""):
+    if force:
+        return
+    if not file_t:
+        file_t = file
+    code, res = execute_cmd(f"cmp {file} .messenger/{file_t}", allow_err=True)
+    if code != 0:
+        input(f"{res}\nSeems that you've modified {file} in your project, the later steps will overwrite it, continue?")
+
+
+def check_dependencies(has_index, has_elm, use_cdn, use_min, index_content):
+    warns = []
+    if not has_index:
+        raise Exception("No html file found in public/. Try `messenger sync` to initialize.")
+    if not has_elm:
+        raise Exception("No elm.json found. Try `messenger sync` to initialize.")
+    # check elm.json
+    repos = {
+        "linsyking/messenger-core": f"{CORE_REPO}",
+        "linsyking/elm-regl": f"{ELM_REGL_REPO}",
+        "linsyking/messenger-extra": f"{EXTRA_REPO}",
+    }
+    with open("elm.json", "r") as f:
+        data = json.load(f)
+    deps = data["dependencies"]["direct"]
+    deps.update(data["dependencies"]["indirect"])
+    print(f"{'Elm Package':<35} {'Current':<10} {'Latest'}")
+    print("-" * 60)
+    for name, url in repos.items():
+        if name in deps:
+            current = deps[name]
+        elif name == "linsyking/messenger-extra":
+            continue
+        else:
+            warns.append(f"Warning: {name[len('linsyking/'):]} is not in elm.json dependencies.")
+            current = "X"
+        latest = get_latest_tag(url)
+        print(f"{name:<35} {current:<10} {latest}")
+    # check index.html
+    latest = get_latest_tag(f"{JS_REGL_REPO}")
+    if "regl.js" not in index_content and "regl.min.js" not in index_content:
+        warns.append("Warning: elm-regl-js is not included in public/index.html.")
+        current = "X"
+    elif use_cdn:
+        patern = r"cdn\.jsdelivr\.net/npm/elm-regl-js@(\d+\.\d+\.\d+)"
+        match = re.search(patern, index_content)
+        current = match.group(1)
+    else:
+        current = "Local"
+    name = "elm-regl-js" + (" (min)" if use_min else "")
+    print(f"\n{'JS Package':<35} {'Current':<10} {'Latest'}")
+    print("-" * 60)
+    print(f"{name:<35} {current:<10} {latest}")
+    if warns:
+        print("\n" + "\n".join(warns))
+    
 
 @app.command()
 def init(
     name: str,
     template_repo=typer.Option(
-        "https://github.com/linsyking/messenger-templates",
+        f"{TEMP_REPO}",
         "--template-repo",
         "-t",
         help="Use customized repository for cloning templates.",
@@ -555,15 +629,16 @@ def init(
 ):
     execute_cmd("elm")
     execute_cmd("elm-format")
-    hint = f"Create a directory named {name}" if not current_dir else f"Use the current directory, project name {name} will be ignored"
+    cur_hint = f"Create a directory named {name}" if not current_dir else f"Use the current directory, project name {name} will be ignored"
+    commit_hint = "\n- Initialize a git repository and commit the template codes" if auto_commit else ""
     input(
         f"""Thanks for using Messenger.
 See https://github.com/linsyking/Messenger for more information.
 Here is my plan:
 
-- {hint}
+- {cur_hint}
 - Install the core Messenger library
-- Install the elm packages needed
+- Install the elm packages needed {commit_hint}
 
 Press Enter to continue
 """
@@ -623,7 +698,6 @@ Press Enter to continue
         if not execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True) == 0:
             print("Initializing git repository...")
             execute_cmd("git init")
-        print("Adding files to git...")
         execute_cmd("git add ./src")
         execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/style.css")
         execute_cmd("git add ./public/index.html")
@@ -632,7 +706,6 @@ Press Enter to continue
         execute_cmd("git add ./messenger.json")
         if not use_cdn:
             execute_cmd("git add ./public/regl.js")
-        print("Making git commit...")
         execute_cmd("git commit -m 'build(Messenger): initialize project'")
     print("Done!")
     hint = f" go to {name} and" if not current_dir else ""
@@ -880,6 +953,123 @@ def font(
         currentJson["common"]["scaleH"] = scaleH
         with open(output_json, "w") as f:
             json.dump(currentJson, f)
+
+
+@app.command()
+def sync(
+    force: bool = typer.Option(
+        False, "--force", "-f", help="Force sync, disable all checks and replace dependencies in public/ forcibly."
+    ),
+    repo: str = typer.Option(
+        "", "--template-repo", "-t", help="The new repository to sync from, empty for no change."
+    ),
+    tag: str = typer.Option(
+        "", "--template-tag", "-b", help="The new tag or branch to sync from, empty for no change."
+    ),
+    ll: bool = typer.Option(
+        False, "--list", "-l", help="List the current dependencies version and latest version on remote."
+    ),
+):
+    msg = Messenger()
+    has_index = os.path.exists("public/index.html")
+    has_elm = os.path.exists("elm.json")
+    use_cdn = False
+    use_min = False
+    if has_index:
+        with open("public/index.html", "r") as f:
+            index_content = f.read()
+        use_cdn = "cdn.jsdelivr.net/npm/elm-regl-js@" in index_content
+        use_min = "regl.min.js" in index_content
+    
+    if ll:
+        check_dependencies(has_index, has_elm, use_cdn, use_min, index_content)
+        exit(0)
+
+    input(
+        """You are going to sync the templates from remote and update the dependencies.
+Here is my plan:
+
+- Remove the current templates and re-clone them
+- Overwrite the js dependencies and index.html in the public/ directory with the latest templates
+- Update elm.json with the latest templates
+
+Note that other changes in the latest templates will not be applied.
+
+Press Enter to continue
+"""
+    )
+    if msg.config["auto_commit"]:
+        msg.check_git_clean()
+    # check file changes
+    if use_cdn:
+        temp_js = ""
+        if use_min:
+            temp_index = "public/index.min.html"
+        else:
+            temp_index = "public/index.html"
+    else:
+        temp_index = "public/index.local.html"
+        if use_min:
+            temp_js = "public/regl.min.js"
+        else:
+            temp_js = "public/regl.js"
+    pubs = [("public/index.html", temp_index), ("public/regl.js", temp_js), ("public/elm-audio.js", ""), ("public/elm-messenger.js", "")]
+    list(map(lambda x: check_file_changes(force, x[0], x[1]) if os.path.exists(x[0]) else None, pubs))
+    # update .messenger
+    print("Syncing templates templates from remote...")
+    if tag != "":
+        msg.config["template_repo"]["tag"] = tag
+    repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
+    if not force:
+        os.chdir(".messenger")
+        msg.check_git_clean()
+        try: 
+            msg.check_git_clean()
+        except Exception as e:
+            print(f"Templates directory not clean! \n{e}")
+            print("DO NOT manually modify the local templates here, your work will be lost when syncing!")
+            print("Maintain a separate repo on remote for your changes. Or manage dependencies manually.")
+            raise Exception("Please commit or stash your changes and try to sync again.")
+        os.chdir("..")
+    shutil.rmtree(".messenger")
+    if repo != "":
+        msg.config["template_repo"]["url"] = repo
+    repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
+    if repo_tag != "":
+        execute_cmd(f"git clone -b {repo_tag} {repo_url} .messenger --depth=1")
+    else:
+        execute_cmd(f"git clone {repo_url} .messenger --depth=1")
+    msg.dump_config()
+    # update public/
+    print("Updating public/ directory...")
+    shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
+    shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
+    shutil.copy(f".messenger/{temp_index}", "./public/index.html")
+    if not use_cdn:
+        shutil.copy(f".messenger/{temp_js}", "./public/regl.js")
+    # update elm.json
+    print("Updating elm dependencies...")
+    if has_elm:
+        with open("elm.json", "r") as f:
+            origin_data = json.load(f)
+        with open(".messenger/elm.json", "r") as f:
+            temp_data = json.load(f)
+        for name, version in temp_data["dependencies"]["direct"].items():
+            origin_data["dependencies"]["direct"][name] = version
+        for name, version in temp_data["dependencies"]["indirect"].items():
+            origin_data["dependencies"]["indirect"][name] = version
+        with open("elm.json", "w") as f:
+            json.dump(origin_data, f, indent=4, ensure_ascii=False)
+    else:
+        shutil.copy(".messenger/elm.json", "./elm.json")
+    if msg.config["auto_commit"]:
+        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/index.html")
+        if not use_cdn:
+            execute_cmd("git add ./public/regl.js")
+        execute_cmd("git add ./elm.json ./messenger.json")
+        execute_cmd("git commit -m 'build(Messenger): sync templates and update dependencies from remote'")
+    print("Done!")
+    print("Now please check the new changes in the templates and update your project if necessary.")
 
 
 @app.callback(invoke_without_command=True)
