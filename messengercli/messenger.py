@@ -96,9 +96,10 @@ class Messenger:
     def update_config(self):
         self.config["version"] = API_VERSION
         self.config["template_repo"] = {"url": "", "tag": ""}
-        self.config["auto_commit"] = False
         if execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True)[0] == 0 and self.config.get("auto_commit"):
             self.config["auto_commit"] = True
+        else:
+            self.config["auto_commit"] = False
         self.config["scenes"] = {}
         self.config["sceneprotos"] = {}
                     
