@@ -963,12 +963,10 @@ def sync(
         needs_update = False
         
         # Check elm dependencies and track if any are outdated
-        elm_outdated = check_dependencies(has_index, has_elm)
-        if elm_outdated:
+        if check_dependencies(has_index, has_elm):
             needs_update = True
-        
+
         # Check template repository status
-        template_outdated = False
         if has_messenger_dir:
             repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
             repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
@@ -984,11 +982,9 @@ def sync(
             
             # Check if template needs update
             if current_commit and remote_commit and current_commit != remote_commit:
-                template_outdated = True
                 needs_update = True
         
         # Check local public/ vs .messenger/public/ differences
-        public_differences = False
         if has_messenger_dir:
             print(f"\n{'Public Files Comparison'}")
             print("-" * 25)
@@ -997,7 +993,6 @@ def sync(
                 print("Differences found:")
                 for diff in differences:
                     print(f"  {diff}")
-                public_differences = True
                 needs_update = True
             else:
                 print("All public files match templates")
@@ -1009,7 +1004,7 @@ def sync(
 Here is my plan:
 
 - Remove the current templates and re-clone them if force is set or the templates are out of date
-- Overwrite the js dependencies and index.html in the public/ directory with the latest templates
+- Overwrite the js dependencies in the public/ directory with the latest templates
 - Update elm.json with the latest templates
 
 Note that other changes in the latest templates will not be applied.
@@ -1046,7 +1041,12 @@ Press Enter to continue
     # check file changes
     if use_cdn:
         temp_js = ""
+        if use_min:
+            temp_html = "public/index.min.html"
+        else:
+            temp_html = "public/index.html"
     else:
+        temp_html = "public/index.local.html"
         if use_min:
             temp_js = "public/regl.min.js"
         else:
@@ -1077,7 +1077,6 @@ Press Enter to continue
         print("Syncing templates from remote...")
         if has_messenger_dir and not force:
             os.chdir(".messenger")
-            msg.check_git_clean()
             try: 
                 msg.check_git_clean()
             except Exception as e:
@@ -1098,10 +1097,14 @@ Press Enter to continue
     msg.dump_config()
     # update public/
     print("Updating public/ directory...")
+    if not has_index:
+        shutil.copy(f".messenger/public/{temp_html}", "./public/index.html")
     shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
     shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
     if not use_cdn:
         shutil.copy(f".messenger/{temp_js}", "./public/regl.js")
+    elif has_index and need_reclone:
+        print(f"You are using jsdelivr CDN for elm-regl JS file, please check the latest version in .messenger/{temp_html}.")
     # update elm.json
     print("Updating elm dependencies...")
     if has_elm:
