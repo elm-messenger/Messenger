@@ -16,11 +16,7 @@ SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
 GC_DIR = "src/GlobalComponents"
 ASSETS_DIR = "assets"
-ELM_REGL_REPO = "https://github.com/elm-messenger/elm-regl.git"
-CORE_REPO = "https://github.com/elm-messenger/messenger-core.git"
-EXTRA_REPO = "https://github.com/elm-messenger/messenger-extra.git"
 TEMP_REPO = "https://github.com/elm-messenger/messenger-templates.git"
-JS_REGL_REPO = "https://github.com/elm-messenger/elm-regl-js.git"
 
 
 def compress_json_file(path: str):
@@ -96,7 +92,7 @@ class Messenger:
         with open("messenger.json", "w") as f:
             json.dump(self.config, f, indent=4, ensure_ascii=False)
         if self.config["auto_commit"]:
-            execute_cmd("git add ./messenger.json")
+            execute_cmd("git add .")
 
 
     def add_level(self, name: str, sceneproto: str):
@@ -128,8 +124,6 @@ class Messenger:
                 [".messenger/sceneproto/Layered/Level.elm"],
                 [f"{SCENE_DIR}/{name}/Model.elm"],
             ).rep(name).rep(sceneproto)
-        if self.config["auto_commit"]:
-            execute_cmd(f"git add {SCENE_DIR}/{name}")
 
     def add_scene(self, scene: str, raw: bool, is_proto: bool, init: bool):
         """
@@ -167,8 +161,6 @@ class Messenger:
                         f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm",
                     ],
                 ).rep(scene)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}")
         else:
             if not os.path.exists(SCENE_DIR):
                 os.mkdir(SCENE_DIR)
@@ -200,8 +192,10 @@ class Messenger:
                         f"{SCENE_DIR}/{scene}/SceneBase.elm",
                     ],
                 ).rep(scene)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENE_DIR}/{scene}")
+
+
+        if self.config["auto_commit"]:
+            execute_cmd(f"git add .")
 
     def update_scenes(self):
         """
@@ -214,7 +208,7 @@ class Messenger:
             "\n".join([f"import Scenes.{l}.Model as {l}" for l in scenes])
         ).rep("\n        , ".join([f'( "{l}", {l}.scene )' for l in scenes]))
         if self.config["auto_commit"]:
-            execute_cmd(f"git add {SCENE_DIR}/AllScenes.elm")
+            execute_cmd(f"git add .")
 
     def add_gc(self, name: str):
         if not os.path.exists(GC_DIR):
@@ -226,7 +220,7 @@ class Messenger:
                 [f"{GC_DIR}/{name}/Model.elm"],
             ).rep(name)
             if self.config["auto_commit"]:
-                execute_cmd(f"git add {GC_DIR}/{name}")
+                execute_cmd(f"git add .")
         else:
             raise Exception("Global component already exists.")
 
@@ -251,16 +245,12 @@ class Messenger:
                     [".messenger/sceneproto/SceneBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/SceneBase.elm")
 
             if not os.path.exists(f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"):
                 Updater(
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             self.dump_config()
             os.makedirs(f"{SCENEPROTO_DIR}/{scene}/{dir}/{name}", exist_ok=True)
@@ -278,8 +268,6 @@ class Messenger:
                     [".messenger/component/Init.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/{name}/Init.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir).rep(name)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/{name}")
         else:
             if scene not in self.config["scenes"]:
                 raise Exception("Scene doesn't exist.")
@@ -295,16 +283,12 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("Scenes").rep(scene).rep(dir)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENE_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/scene/SceneBase.elm"],
                     [f"{SCENE_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENE_DIR}/{scene}/SceneBase.elm")
 
             self.dump_config()
             os.makedirs(f"{SCENE_DIR}/{scene}/{dir}/{name}", exist_ok=True)
@@ -322,8 +306,9 @@ class Messenger:
                     [".messenger/component/Init.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/{name}/Init.elm"],
                 ).rep("Scenes").rep(scene).rep(dir).rep(name)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/{name}")
+
+        if self.config["auto_commit"]:
+            execute_cmd(f"git add .")
 
     def format(self):
         execute_cmd("elm-format src/ --yes")
@@ -353,16 +338,12 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("SceneProtos").rep(scene).rep(dir)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/sceneproto/SceneBase.elm"],
                     [f"{SCENEPROTO_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/SceneBase.elm")
             self.dump_config()
             os.mkdir(f"{SCENEPROTO_DIR}/{scene}/{layer}")
             if init:
@@ -388,8 +369,6 @@ class Messenger:
                         f"{SCENEPROTO_DIR}/{scene}/{layer}/Model.elm",
                     ],
                 ).rep("SceneProtos").rep(scene).rep(layer)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENEPROTO_DIR}/{scene}/{layer}")
         else:
             if scene not in self.config["scenes"]:
                 raise Exception("Scene doesn't exist.")
@@ -403,16 +382,12 @@ class Messenger:
                     [".messenger/component/ComponentBase.elm"],
                     [f"{SCENE_DIR}/{scene}/{dir}/ComponentBase.elm"],
                 ).rep("Scenes").rep(scene).rep(dir)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENE_DIR}/{scene}/{dir}/ComponentBase.elm")
 
             if not os.path.exists(f"{SCENE_DIR}/{scene}/SceneBase.elm"):
                 Updater(
                     [".messenger/scene/SceneBase.elm"],
                     [f"{SCENE_DIR}/{scene}/SceneBase.elm"],
                 ).rep(scene)
-                if self.config["auto_commit"]:
-                    execute_cmd(f"git add {SCENE_DIR}/{scene}/SceneBase.elm")
             self.dump_config()
             os.mkdir(f"{SCENE_DIR}/{scene}/{layer}")
             if init:
@@ -438,8 +413,9 @@ class Messenger:
                         f"{SCENE_DIR}/{scene}/{layer}/Model.elm",
                     ],
                 ).rep("Scenes").rep(scene).rep(layer)
-            if self.config["auto_commit"]:
-                execute_cmd(f"git add {SCENE_DIR}/{scene}/{layer}")
+
+        if self.config["auto_commit"]:
+            execute_cmd(f"git add .")
 
     def install_font(self, filepath, name, font_size, range, charset_file, reuse, curpng):
         """
@@ -682,14 +658,7 @@ Press Enter to continue
         if not execute_cmd("git rev-parse --is-inside-work-tree", allow_err=True) == 0:
             print("Initializing git repository...")
             execute_cmd("git init")
-        execute_cmd("git add ./src")
-        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/style.css")
-        execute_cmd("git add ./public/index.html")
-        execute_cmd("git add ./.gitignore ./Makefile ./elm.json")
-        execute_cmd("git add ./assets/fonts")
-        execute_cmd("git add ./messenger.json")
-        if not use_cdn:
-            execute_cmd("git add ./public/regl.js")
+        execute_cmd(f"git add .")
         execute_cmd("git commit -m 'build(Messenger): initialize project'")
     print("Done!")
     hint = f" go to {name} and" if not current_dir else ""
@@ -955,6 +924,10 @@ def sync(
     # Read use_cdn and use_min from messenger.json
     use_cdn = msg.config.get("use_cdn", False)
     use_min = msg.config.get("use_min", False)
+    repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
+    repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
+    current_commit = get_current_commit(".messenger") if has_messenger_dir else ""
+    remote_commit = get_remote_commit(repo_url, repo_tag)
     
     if ll:
         needs_update = False
@@ -965,12 +938,6 @@ def sync(
 
         # Check template repository status
         if has_messenger_dir:
-            repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
-            repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
-            
-            current_commit = get_current_commit(".messenger")
-            remote_commit = get_remote_commit(repo_url, repo_tag)
-            
             print(f"\n{'Template Repository':<35} {'Current':<10} {'Latest'}")
             print("-" * 60)
             current_display = current_commit[:8] if current_commit else "Unknown"
@@ -1014,12 +981,6 @@ Press Enter to continue
     
     # Check if sync is needed
     if not force and has_messenger_dir:
-        repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
-        repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
-        
-        current_commit = get_current_commit(".messenger")
-        remote_commit = get_remote_commit(repo_url, repo_tag)
-        
         if current_commit and remote_commit and current_commit == remote_commit:
             print("Templates are already up to date.")
             differences = compare_public_files(use_cdn, use_min)
@@ -1053,15 +1014,10 @@ Press Enter to continue
         msg.config["template_repo"]["tag"] = tag
     if repo != "":
         msg.config["template_repo"]["url"] = repo
-    repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
-    repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
     
     # Check if we need to re-clone templates
     need_reclone = force
     if not force and has_messenger_dir:
-        current_commit = get_current_commit(".messenger")
-        remote_commit = get_remote_commit(repo_url, repo_tag)
-        
         if not current_commit or not remote_commit or current_commit != remote_commit:
             need_reclone = True
             print("Templates are out of date, updating...")
@@ -1118,10 +1074,7 @@ Press Enter to continue
     else:
         shutil.copy(".messenger/elm.json", "./elm.json")
     if msg.config["auto_commit"]:
-        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js")
-        if not use_cdn:
-            execute_cmd("git add ./public/regl.js")
-        execute_cmd("git add ./elm.json ./messenger.json")
+        execute_cmd("git add .")
         execute_cmd("git commit -m 'build(Messenger): sync templates and update dependencies from remote'")
     print("Done!")
     # print("Now please check the new changes in the templates and update your project if necessary.")
