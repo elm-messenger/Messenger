@@ -495,8 +495,16 @@ def compare_public_files(use_cdn, use_min):
     
     differences = []
     
+    rmt_html = "index.local.html"
+    if use_cdn:
+        if use_min:
+            rmt_html = "index.min.html"
+        else:
+            rmt_html = "index.html"
+
     # Define files to compare based on configuration
     files_to_check = [
+        ("index.html", rmt_html),
         ("elm-audio.js", "elm-audio.js"),
         ("elm-messenger.js", "elm-messenger.js")
     ]
