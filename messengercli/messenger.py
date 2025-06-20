@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import re
 import typer
 import os
 import shutil
@@ -473,17 +472,19 @@ def check_name(name: str):
         return name
     
 
-def get_latest_tag(repo_url):
-    _, res = execute_cmd(f"git ls-remote --tags {repo_url}")
-    tags = []
-    for line in res.splitlines():
-        if "^{}" in line:
-            continue
-        if "refs/tags/" in line:
-            tag = line.split("refs/tags/")[1]
-            tag = tag.lstrip("v")
-            tags.append(tag)
-    return str(max(tags, key=lambda x: tuple(map(int, x.split('.')))))
+def get_latest_version(package):
+    import urllib.request
+    import re
+
+    url = f"https://package.elm-lang.org/packages/{package}/latest"
+    package = package.split("/")[-1]
+    with urllib.request.urlopen(url) as response:
+        html = response.read().decode('utf-8')
+    match = re.search(fr"<title>{re.escape(package)} ([^<]+)</title>", html)
+    if match:
+        return match.group(1)
+    else:
+        return "Unknown"
 
 
 def get_current_commit(repo_path):
@@ -550,18 +551,14 @@ def check_dependencies(has_index, has_elm):
     if not has_elm:
         raise Exception("No elm.json found. Try `messenger sync` to initialize.")
     # check elm.json
-    repos = {
-        "linsyking/messenger-core": f"{CORE_REPO}",
-        "linsyking/elm-regl": f"{ELM_REGL_REPO}",
-        "linsyking/messenger-extra": f"{EXTRA_REPO}",
-    }
+    packages = ["linsyking/messenger-core", "linsyking/elm-regl", "linsyking/messenger-extra"]
     with open("elm.json", "r") as f:
         data = json.load(f)
     deps = data["dependencies"]["direct"]
     deps.update(data["dependencies"]["indirect"])
     print(f"{'Elm Package':<35} {'Current':<10} {'Latest'}")
     print("-" * 60)
-    for name, url in repos.items():
+    for name in packages:
         if name in deps:
             current = deps[name]
         elif name == "linsyking/messenger-extra":
@@ -570,7 +567,7 @@ def check_dependencies(has_index, has_elm):
             warns.append(f"Warning: {name[len('linsyking/'):]} is not in elm.json dependencies.")
             current = "X"
             outdated = True
-        latest = get_latest_tag(url)
+        latest = get_latest_version(name)
         print(f"{name:<35} {current:<10} {latest}")
         # Check if current version is different from latest
         if current != "X" and current != latest:
