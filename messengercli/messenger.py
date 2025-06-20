@@ -68,6 +68,11 @@ class Messenger:
                 raise Exception(
                     f"Messenger configuration file API version not matched. I'm using v{API_VERSION}. You can edit messenger.json manually to upgrade/downgrade."
                 )
+            # Add backwards compatibility for use_cdn and use_min fields
+            if "use_cdn" not in self.config:
+                self.config["use_cdn"] = False
+            if "use_min" not in self.config:
+                self.config["use_min"] = False
         else:
             raise Exception(
                 "messenger.json not found. Are you in the project initialized by the Messenger? Try `messenger init <your-project-name>`."
@@ -481,18 +486,65 @@ def get_latest_tag(repo_url):
     return str(max(tags, key=lambda x: tuple(map(int, x.split('.')))))
 
 
-def check_file_changes(force, file, file_t = ""):
-    if force:
-        return
-    if not file_t:
-        file_t = file
-    code, res = execute_cmd(f"cmp {file} .messenger/{file_t}", allow_err=True)
-    if code != 0:
-        input(f"{res}\nSeems that you've modified {file} in your project, the later steps will overwrite it, continue?")
+def get_current_commit(repo_path):
+    """Get current commit hash of a git repository"""
+    try:
+        code, output = execute_cmd(f"git -C {repo_path} rev-parse HEAD", allow_err=True)
+        if code == 0:
+            return output.strip()
+        return None
+    except:
+        return None
 
 
-def check_dependencies(has_index, has_elm, use_cdn, use_min, index_content):
+def get_remote_commit(repo_url, branch_or_tag=""):
+    """Get latest commit hash from remote repository"""
+    try:
+        if branch_or_tag:
+            code, output = execute_cmd(f"git ls-remote {repo_url} {branch_or_tag}", allow_err=True)
+        else:
+            code, output = execute_cmd(f"git ls-remote {repo_url} HEAD", allow_err=True)
+        
+        if code == 0 and output.strip():
+            return output.strip().split()[0]
+        return None
+    except:
+        return None
+
+
+def compare_public_files(use_cdn, use_min):
+    """Compare necessary public files between local and template"""
+    import filecmp
+    
+    differences = []
+    
+    # Define files to compare based on configuration
+    files_to_check = [
+        ("elm-audio.js", "elm-audio.js"),
+        ("elm-messenger.js", "elm-messenger.js")
+    ]
+    
+    # Add regl.js only if using local regl
+    if not use_cdn:
+        files_to_check.append(("regl.js", "regl.min.js" if use_min else "regl.js"))
+    
+    for local_file, template_file in files_to_check:
+        local_path = os.path.join("public", local_file)
+        template_path = os.path.join(".messenger/public", template_file)
+        
+        if not os.path.exists(local_path):
+            differences.append(f"Missing local file: {local_file}")
+        elif not os.path.exists(template_path):
+            differences.append(f"Missing template file: {template_file}")
+        elif not filecmp.cmp(local_path, template_path, shallow=False):
+            differences.append(f"Different: {local_file}")
+    
+    return differences
+
+
+def check_dependencies(has_index, has_elm):
     warns = []
+    outdated = False
     if not has_index:
         raise Exception("No html file found in public/. Try `messenger sync` to initialize.")
     if not has_elm:
@@ -517,25 +569,15 @@ def check_dependencies(has_index, has_elm, use_cdn, use_min, index_content):
         else:
             warns.append(f"Warning: {name[len('linsyking/'):]} is not in elm.json dependencies.")
             current = "X"
+            outdated = True
         latest = get_latest_tag(url)
         print(f"{name:<35} {current:<10} {latest}")
-    # check index.html
-    latest = get_latest_tag(f"{JS_REGL_REPO}")
-    if "regl.js" not in index_content and "regl.min.js" not in index_content:
-        warns.append("Warning: elm-regl-js is not included in public/index.html.")
-        current = "X"
-    elif use_cdn:
-        patern = r"cdn\.jsdelivr\.net/npm/elm-regl-js@(\d+\.\d+\.\d+)"
-        match = re.search(patern, index_content)
-        current = match.group(1)
-    else:
-        current = "Local"
-    name = "elm-regl-js" + (" (min)" if use_min else "")
-    print(f"\n{'JS Package':<35} {'Current':<10} {'Latest'}")
-    print("-" * 60)
-    print(f"{name:<35} {current:<10} {latest}")
+        # Check if current version is different from latest
+        if current != "X" and current != latest:
+            outdated = True
     if warns:
         print("\n" + "\n".join(warns))
+    return outdated
     
 
 @app.command()
@@ -629,6 +671,8 @@ Press Enter to continue
             "tag": template_tag,
         },
         "auto_commit": auto_commit,
+        "use_cdn": use_cdn,
+        "use_min": minimal,
         "scenes": {},
         "sceneprotos": {},
     }
@@ -902,23 +946,62 @@ def sync(
     msg = Messenger()
     has_index = os.path.exists("public/index.html")
     has_elm = os.path.exists("elm.json")
-    use_cdn = False
-    use_min = False
-    if has_index:
-        with open("public/index.html", "r") as f:
-            index_content = f.read()
-        use_cdn = "cdn.jsdelivr.net/npm/elm-regl-js@" in index_content
-        use_min = "regl.min.js" in index_content
+    has_messenger_dir = os.path.exists(".messenger")
+    
+    # Read use_cdn and use_min from messenger.json
+    use_cdn = msg.config.get("use_cdn", False)
+    use_min = msg.config.get("use_min", False)
     
     if ll:
-        check_dependencies(has_index, has_elm, use_cdn, use_min, index_content)
-        exit(0)
+        needs_update = False
+        
+        # Check elm dependencies and track if any are outdated
+        elm_outdated = check_dependencies(has_index, has_elm)
+        if elm_outdated:
+            needs_update = True
+        
+        # Check template repository status
+        template_outdated = False
+        if has_messenger_dir:
+            repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
+            repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
+            
+            current_commit = get_current_commit(".messenger")
+            remote_commit = get_remote_commit(repo_url, repo_tag)
+            
+            print(f"\n{'Template Repository':<35} {'Current':<10} {'Latest'}")
+            print("-" * 60)
+            current_display = current_commit[:8] if current_commit else "Unknown"
+            latest_display = remote_commit[:8] if remote_commit else "Unknown"
+            print(f"{'Templates':<35} {current_display:<10} {latest_display}")
+            
+            # Check if template needs update
+            if current_commit and remote_commit and current_commit != remote_commit:
+                template_outdated = True
+                needs_update = True
+        
+        # Check local public/ vs .messenger/public/ differences
+        public_differences = False
+        if has_messenger_dir:
+            print(f"\n{'Public Files Comparison'}")
+            print("-" * 25)
+            differences = compare_public_files(use_cdn, use_min)
+            if differences:
+                print("Differences found:")
+                for diff in differences:
+                    print(f"  {diff}")
+                public_differences = True
+                needs_update = True
+            else:
+                print("All public files match templates")
+        
+        exit(1 if needs_update else 0)
 
     input(
         """You are going to sync the templates from remote and update the dependencies.
 Here is my plan:
 
-- Remove the current templates and re-clone them
+- Remove the current templates and re-clone them if force is set or the templates are out of date
 - Overwrite the js dependencies and index.html in the public/ directory with the latest templates
 - Update elm.json with the latest templates
 
@@ -929,51 +1012,87 @@ Press Enter to continue
     )
     if msg.config["auto_commit"]:
         msg.check_git_clean()
+    
+    # Check if sync is needed
+    if not force and has_messenger_dir:
+        repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
+        repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
+        
+        current_commit = get_current_commit(".messenger")
+        remote_commit = get_remote_commit(repo_url, repo_tag)
+        
+        if current_commit and remote_commit and current_commit == remote_commit:
+            print("Templates are already up to date.")
+            differences = compare_public_files(use_cdn, use_min)
+            if not differences:
+                print("Local public files match templates.")
+                print("No sync needed. Use --force to sync anyway.")
+                return
+            else:
+                print("However, local public files have differences:")
+                for diff in differences:
+                    print(f"  {diff}")
+                answer = input("Do you want to sync anyway? (y/N): ")
+                if answer.lower() != 'y':
+                    return
+    
     # check file changes
     if use_cdn:
         temp_js = ""
-        if use_min:
-            temp_index = "public/index.min.html"
-        else:
-            temp_index = "public/index.html"
     else:
-        temp_index = "public/index.local.html"
         if use_min:
             temp_js = "public/regl.min.js"
         else:
             temp_js = "public/regl.js"
-    pubs = [("public/index.html", temp_index), ("public/regl.js", temp_js), ("public/elm-audio.js", ""), ("public/elm-messenger.js", "")]
-    list(map(lambda x: check_file_changes(force, x[0], x[1]) if os.path.exists(x[0]) else None, pubs))
     # update .messenger
-    print("Syncing templates templates from remote...")
     if tag != "":
         msg.config["template_repo"]["tag"] = tag
-    repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
-    if not force:
-        os.chdir(".messenger")
-        msg.check_git_clean()
-        try: 
-            msg.check_git_clean()
-        except Exception as e:
-            print(f"Templates directory not clean! \n{e}")
-            print("DO NOT manually modify the local templates here, your work will be lost when syncing!")
-            print("Maintain a separate repo on remote for your changes. Or manage dependencies manually.")
-            raise Exception("Please commit or stash your changes and try to sync again.")
-        os.chdir("..")
-    shutil.rmtree(".messenger")
     if repo != "":
         msg.config["template_repo"]["url"] = repo
     repo_url = msg.config["template_repo"]["url"] if msg.config["template_repo"]["url"] else TEMP_REPO
-    if repo_tag != "":
-        execute_cmd(f"git clone -b {repo_tag} {repo_url} .messenger --depth=1")
+    repo_tag = msg.config["template_repo"]["tag"] if msg.config["template_repo"]["tag"] else ""
+    
+    # Check if we need to re-clone templates
+    need_reclone = force
+    if not force and has_messenger_dir:
+        current_commit = get_current_commit(".messenger")
+        remote_commit = get_remote_commit(repo_url, repo_tag)
+        
+        if not current_commit or not remote_commit or current_commit != remote_commit:
+            need_reclone = True
+            print("Templates are out of date, updating...")
+        else:
+            print("Templates are already up to date, skipping re-clone...")
     else:
-        execute_cmd(f"git clone {repo_url} .messenger --depth=1")
+        need_reclone = True
+    
+    if need_reclone:
+        print("Syncing templates from remote...")
+        if has_messenger_dir and not force:
+            os.chdir(".messenger")
+            msg.check_git_clean()
+            try: 
+                msg.check_git_clean()
+            except Exception as e:
+                print(f"Templates directory not clean! \n{e}")
+                print("DO NOT manually modify the local templates here, your work will be lost when syncing!")
+                print("Maintain a separate repo on remote for your changes. Or manage dependencies manually.")
+                raise Exception("Please commit or stash your changes and try to sync again.")
+            os.chdir("..")
+        
+        if has_messenger_dir:
+            shutil.rmtree(".messenger")
+        
+        if repo_tag != "":
+            execute_cmd(f"git clone -b {repo_tag} {repo_url} .messenger --depth=1")
+        else:
+            execute_cmd(f"git clone {repo_url} .messenger --depth=1")
+    
     msg.dump_config()
     # update public/
     print("Updating public/ directory...")
     shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
     shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
-    shutil.copy(f".messenger/{temp_index}", "./public/index.html")
     if not use_cdn:
         shutil.copy(f".messenger/{temp_js}", "./public/regl.js")
     # update elm.json
@@ -992,13 +1111,13 @@ Press Enter to continue
     else:
         shutil.copy(".messenger/elm.json", "./elm.json")
     if msg.config["auto_commit"]:
-        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js ./public/index.html")
+        execute_cmd("git add ./public/elm-audio.js ./public/elm-messenger.js")
         if not use_cdn:
             execute_cmd("git add ./public/regl.js")
         execute_cmd("git add ./elm.json ./messenger.json")
         execute_cmd("git commit -m 'build(Messenger): sync templates and update dependencies from remote'")
     print("Done!")
-    print("Now please check the new changes in the templates and update your project if necessary.")
+    # print("Now please check the new changes in the templates and update your project if necessary.")
 
 
 @app.callback(invoke_without_command=True)
