@@ -10,8 +10,8 @@ from pathlib import Path
 from .updater import Updater
 
 app = typer.Typer(add_completion=False, help="Messenger CLI")
-API_VERSION = "1.2.0"
-CLI_VERSION = "0.5.3"
+API_VERSION = "1.2.1"
+CLI_VERSION = "0.6.0"
 
 SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"
@@ -866,6 +866,10 @@ def font(
     ctx : typer.Context,
     range : int =typer.Option(4, "--range", help="Set the distance range."),
 ):
+    """
+    Install custom fonts for use in your Messenger project.
+    Usage: `messenger font FONT1 FONT2...` where each FONT is `<font_file> [-n <name>] [-i <charset_file>] [-s <font_size>]`.
+    """
     args = ctx.args
     # Check if the tool exists
     execute_cmd("msdf-bmfont -h")
@@ -943,6 +947,9 @@ def sync(
         False, "--list", "-l", help="List the current dependencies version and latest version on remote."
     ),
 ):
+    """
+    Sync your project with the latest templates and dependencies from remote repositories. Updates Elm packages, JavaScript files (elm-audio.js, elm-messenger.js, regl.js), and elm.json to match the latest versions. Use --list to check current vs latest versions without making changes.
+    """
     msg = Messenger()
     has_index = os.path.exists("public/index.html")
     has_elm = os.path.exists("elm.json")
