@@ -561,6 +561,51 @@ def check_dependencies(has_index, has_elm):
     return outdated
     
 
+def prompt_overwrite(path: str, is_dir: bool = False) -> str:
+    
+    prompt_end = ": " if is_dir else " / [d] show diff: "
+    err_end = "or s." if is_dir else "or s, or d."
+    
+    prompt = f"""{path} already exists.
+        [y] overwrite / [n] abort / [s] skip{prompt_end}"""
+    err = f"Please choose y, n, {err_end}"
+
+    while True:
+        ans = input(prompt).strip().lower()
+        if ans in ("y", "n", "s"):
+            return ans
+        if ans == "d" and not is_dir:
+            template = f".messenger/{path.lstrip('.')}"
+            if os.path.exists(template):
+                subprocess.run(["diff", "-u", path, template], check=False)
+            else:
+                print(f"  no template to compare with.")
+            continue
+        print(err)
+
+
+def collect_conflicts():
+    if os.path.exists("messenger.json"):
+        return (
+            "messenger.json already exists: this directory is already a Messenger project.\n"
+            "Run 'messenger sync' if want to update dependencies, or remove messenger.json first to reinitialize.",
+            [],
+        )
+    if os.path.exists("./src"):
+        return ("src directory already exists. Please remove or rename it first.", [])
+
+    conflicts = []
+    for path, is_dir in [
+        ("public", True),
+        ("Makefile", False),
+        (".gitignore", False),
+        ("elm.json", False),
+    ]:
+        if os.path.exists(path):
+            conflicts.append((path, is_dir))
+    return (None, conflicts)
+
+
 @app.command()
 def init(
     name: str,
@@ -618,27 +663,59 @@ Press Enter to continue
     else:
         template_tag = ""
         execute_cmd(f"git clone {template_repo} .messenger --depth=1")
-    if os.path.exists("./src"):
-        raise FileExistsError("src directory already exists. Please remove or rename it first.")
+    abort_reason, conflicts = collect_conflicts()
+    if abort_reason is not None:
+        raise FileExistsError(abort_reason)
+
+    skipped = set()
+    if conflicts:
+        print("The following files/directories already exist and will be overwritten:")
+        for path, is_dir in conflicts:
+            kind = "(directory)" if is_dir else "(file)"
+            print(f"  {path} {kind}")
+        while True:
+            ans = input(
+                "Overwrite all? [y]es / [n]o / [s]elect per file: "
+            ).strip().lower()
+            if ans == "y":
+                break
+            if ans == "n":
+                raise FileExistsError("Aborted")
+            if ans == "s":
+                for path, is_dir in conflicts:
+                    choice = prompt_overwrite(path, is_dir)
+                    if choice == "n":
+                        raise FileExistsError("Aborted")
+                    if choice == "s":
+                        skipped.add(path)
+                break
+            print("Please choose y, n, or s.")
+
     shutil.copytree(".messenger/src/", "./src")
-    os.makedirs("public", exist_ok=True)
-    shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
-    shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
-    shutil.copy(".messenger/public/style.css", "./public/style.css")
-    if use_cdn:
-        if minimal:
-            shutil.copy(".messenger/public/index.min.html", "./public/index.html")
+
+    if "public" not in skipped:
+        os.makedirs("public", exist_ok=True)
+        shutil.copy(".messenger/public/elm-audio.js", "./public/elm-audio.js")
+        shutil.copy(".messenger/public/elm-messenger.js", "./public/elm-messenger.js")
+        shutil.copy(".messenger/public/style.css", "./public/style.css")
+        if use_cdn:
+            if minimal:
+                shutil.copy(".messenger/public/index.min.html", "./public/index.html")
+            else:
+                shutil.copy(".messenger/public/index.html", "./public/index.html")
         else:
-            shutil.copy(".messenger/public/index.html", "./public/index.html")
-    else:
-        shutil.copy(".messenger/public/index.local.html", "./public/index.html")
-        if minimal:
-            shutil.copy(".messenger/public/regl.min.js", "./public/regl.js")
-        else:
-            shutil.copy(".messenger/public/regl.js", "./public/regl.js")
-    shutil.copy(".messenger/.gitignore", "./.gitignore")
-    shutil.copy(".messenger/Makefile", "./Makefile")
-    shutil.copy(".messenger/elm.json", "./elm.json")
+            shutil.copy(".messenger/public/index.local.html", "./public/index.html")
+            if minimal:
+                shutil.copy(".messenger/public/regl.min.js", "./public/regl.js")
+            else:
+                shutil.copy(".messenger/public/regl.js", "./public/regl.js")
+
+    if "Makefile" not in skipped:
+        shutil.copy(".messenger/Makefile", "./Makefile")
+    if ".gitignore" not in skipped:
+        shutil.copy(".messenger/.gitignore", "./.gitignore")
+    if "elm.json" not in skipped:
+        shutil.copy(".messenger/elm.json", "./elm.json")
 
     os.makedirs(SCENE_DIR, exist_ok=True)
     os.makedirs(ASSETS_DIR, exist_ok=True)
