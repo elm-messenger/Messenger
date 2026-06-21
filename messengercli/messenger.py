@@ -10,7 +10,7 @@ from .updater import Updater
 
 app = typer.Typer(add_completion=False, help="Messenger CLI")
 API_VERSION = "1.2.1"
-CLI_VERSION = "0.6.0"
+CLI_VERSION = "0.6.1"
 
 SCENE_DIR = "src/Scenes"
 SCENEPROTO_DIR = "src/SceneProtos"

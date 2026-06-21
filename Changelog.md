@@ -2,6 +2,21 @@
 
 This changelog only contains changes in CLI tools of Messenger. See [Changelog](https://github.com/elm-messenger/messenger-core/blob/master/Changelog.md) for changelog of Messenger core.
 
+## 0.6.1
+
+### Features:
+
+- Check file conflicts before initialization
+
+## 0.6.0
+
+### Features:
+
+- Add `font` command
+- Add `sync` command
+- Add `-c` option for `init`
+- Add `-g` for init ptoject with auto-commit
+
 ## 0.5.0
 
 ### Features:
