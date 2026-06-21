@@ -567,7 +567,7 @@ def prompt_overwrite(path: str, is_dir: bool = False) -> str:
     err_end = "or s." if is_dir else "or s, or d."
     
     prompt = f"""{path} already exists.
-        [y] overwrite / [n] abort / [s] skip{prompt_end}"""
+[y] overwrite / [n] abort / [s] skip{prompt_end}"""
     err = f"Please choose y, n, {err_end}"
 
     while True:
@@ -575,11 +575,11 @@ def prompt_overwrite(path: str, is_dir: bool = False) -> str:
         if ans in ("y", "n", "s"):
             return ans
         if ans == "d" and not is_dir:
-            template = f".messenger/{path.lstrip('.')}"
+            template = f".messenger/{path}"
             if os.path.exists(template):
                 subprocess.run(["diff", "-u", path, template], check=False)
             else:
-                print(f"  no template to compare with.")
+                print(f"no template to compare with.")
             continue
         print(err)
 
@@ -665,6 +665,7 @@ Press Enter to continue
         execute_cmd(f"git clone {template_repo} .messenger --depth=1")
     abort_reason, conflicts = collect_conflicts()
     if abort_reason is not None:
+        shutil.rmtree(".messenger", ignore_errors=True)
         raise FileExistsError(abort_reason)
 
     skipped = set()
@@ -680,11 +681,13 @@ Press Enter to continue
             if ans == "y":
                 break
             if ans == "n":
+                shutil.rmtree(".messenger", ignore_errors=True)
                 raise FileExistsError("Aborted")
             if ans == "s":
                 for path, is_dir in conflicts:
                     choice = prompt_overwrite(path, is_dir)
                     if choice == "n":
+                        shutil.rmtree(".messenger", ignore_errors=True)
                         raise FileExistsError("Aborted")
                     if choice == "s":
                         skipped.add(path)
